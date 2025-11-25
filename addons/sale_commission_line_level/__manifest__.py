@@ -9,12 +9,13 @@
         Propagates this selection to Invoice Lines.
         Calculates Commissions based on Line Margins upon full payment.
     """,
-    'depends': ['sale_management', 'account', 'sale_commission', 'sale_margin'],
+    'depends': ['sale_management', 'account', 'sale_commission', 'sale_margin', 'sale_commission_subscription'],
     'data': [
         'views/sale_order_views.xml',
         'views/account_move_views.xml',
     ],
     'license': 'OEEL-1',
     'installable': True,
+    'auto_install': True,
     'application': False,
 }
