@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="sale_achievement_report_view_list_inherit" model="ir.ui.view">
+        <field name="name">sale.commission.achievement.report.view.list.inherit</field>
+        <field name="model">sale.commission.achievement.report</field>
+        <field name="inherit_id" ref="sale_commission.sale_achievement_report_view_list"/>
+        <field name="arch" type="xml">
+            <!-- Add source_name field after related_res_id -->
+            <field name="related_res_id" position="after">
+                <field name="source_name" string="Invoice" optional="show"/>
+                <field name="invoice_status" string="Invoice Status" optional="show" widget="badge" decoration-success="invoice_status == 'paid'" decoration-info="invoice_status == 'in_payment'" decoration-warning="invoice_status == 'partial'" decoration-danger="invoice_status == 'not_paid'"/>
+            </field>
+        </field>
+    </record>
+</odoo>
