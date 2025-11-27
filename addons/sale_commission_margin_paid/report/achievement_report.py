@@ -32,12 +32,12 @@ class SaleCommissionAchievementReport(models.Model):
                 WHEN fm.move_type = 'out_invoice' THEN
                     rules.margin_invoice_paid_rate * (
                         aml.price_subtotal - 
-                        (COALESCE((pp.standard_price)::numeric, 0) * aml.quantity)
+                        (COALESCE((pp.standard_price->>fm.company_id::text)::numeric, 0) * aml.quantity)
                     ) * cr.rate / fm.invoice_currency_rate
                 WHEN fm.move_type = 'out_refund' THEN
                     rules.margin_invoice_paid_rate * (
                         aml.price_subtotal - 
-                        (COALESCE((pp.standard_price)::numeric, 0) * aml.quantity)
+                        (COALESCE((pp.standard_price->>fm.company_id::text)::numeric, 0) * aml.quantity)
                     ) * cr.rate / fm.invoice_currency_rate * -1
             END
         """
