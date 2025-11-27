@@ -214,8 +214,6 @@ invoice_commission_lines_team AS (
             ON aml.product_id = pp.id
          LEFT JOIN product_template pt
             ON pp.product_tmpl_id = pt.id
-         LEFT JOIN sale_order sub
-            ON sub.id = aml.subscription_id  -- Add subscription JOIN for filtering
          JOIN currency_rate cr
             ON cr.company_id = fm.company_id
     WHERE {self._where_invoices()}
@@ -235,34 +233,17 @@ invoice_commission_lines_team AS (
     (SELECT *, 'account.move' AS related_res_model FROM invoice_commission_lines_user)
 )""", 'invoice_commission_lines'
 
-    # ========== SUBSCRIPTION FIX ==========
-    # Override to add context protection for the subscription filter
-    # This prevents SQL error when creating temporary tables
-
-    @api.model
-    def _join_invoices(self, join_type=None):
-        # Get the base JOIN from parent
-        res = super()._join_invoices(join_type=join_type)
-        # The parent sale_commission_subscription already adds the sub JOIN
-        # We inherit it automatically, no need to duplicate
-        return res
-
     @api.model
     def _where_invoices(self):
-        # Get the base implementation from sale_commission (grandparent)
-        # We skip the sale_commission_subscription implementation which has the bug
-        where = """
+        """
+        Override to prevent subscription filtering from parent module.
+        
+        The sale_commission_subscription module adds a WHERE clause that references
+        the 'sub' table, but we don't include that table in our line-level queries.
+        This override returns only the base WHERE conditions without subscription filtering.
+        """
+        return """
           aml.display_type = 'product'
           AND fm.move_type in ('out_invoice', 'out_refund')
           AND fm.state = 'posted'
         """
-        
-        # CRITICAL FIX: Only add the subscription filter when we're in the achievement report context
-        # where the 'sub' table alias is available (not in the temp table creation)
-        if self.env.context.get('achievement_report'):
-            where += """
-          AND ((rules.recurring_plan_id IS NULL) OR (rules.recurring_plan_id=sub.plan_id))
-        """
-        
-        return where
-
