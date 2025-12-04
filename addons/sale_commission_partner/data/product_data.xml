@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <record id="product_commission_default" model="product.product">
+            <field name="name">Partner Commission</field>
+            <field name="type">service</field>
+            <field name="list_price">0.0</field>
+            <field name="standard_price">0.0</field>
+            <field name="purchase_ok">True</field>
+            <field name="sale_ok">False</field>
+        </record>
+    </data>
+</odoo>

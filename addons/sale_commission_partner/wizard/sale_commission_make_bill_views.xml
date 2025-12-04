@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_sale_commission_make_bill_form" model="ir.ui.view">
+        <field name="name">sale.commission.make.bill.form</field>
+        <field name="model">sale.commission.make.bill</field>
+        <field name="arch" type="xml">
+            <form string="Generate Commission Bills">
+                <group>
+                    <group>
+                        <field name="date_from"/>
+                        <field name="date_to"/>
+                    </group>
+                    <group>
+                        <field name="product_id"/>
+                    </group>
+                </group>
+                <group>
+                    <field name="partner_ids" widget="many2many_tags" placeholder="All Agents"/>
+                </group>
+                <footer>
+                    <button name="action_generate_bills" string="Generate Bills" type="object" class="btn-primary"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_sale_commission_make_bill" model="ir.actions.act_window">
+        <field name="name">Generate Commission Bills</field>
+        <field name="res_model">sale.commission.make.bill</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <menuitem id="menu_sale_commission_make_bill"
+              name="Generate Bills"
+              parent="sale_commission.menu_sale_commission"
+              action="action_sale_commission_make_bill"
+              sequence="30"/>
+</odoo>

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_sale_commission_partner_report_tree" model="ir.ui.view">
+        <field name="name">sale.commission.partner.report.tree</field>
+        <field name="model">sale.commission.partner.report</field>
+        <field name="arch" type="xml">
+            <list string="Partner Commissions" create="false" edit="false" delete="false">
+                <field name="date"/>
+                <field name="partner_id"/>
+                <field name="plan_id"/>
+                <field name="source_id"/>
+                <field name="payment_state" widget="badge" decoration-success="payment_state == 'paid'"/>
+                <field name="achieved" sum="Total Achieved"/>
+                <field name="commission" sum="Total Commission"/>
+                <field name="currency_id" column_invisible="True"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_sale_commission_partner_report_search" model="ir.ui.view">
+        <field name="name">sale.commission.partner.report.search</field>
+        <field name="model">sale.commission.partner.report</field>
+        <field name="arch" type="xml">
+            <search string="Partner Commissions">
+                <field name="partner_id"/>
+                <field name="plan_id"/>
+                <field name="date"/>
+                <field name="payment_state"/>
+                <filter string="Paid" name="paid" domain="[('payment_state', '=', 'paid')]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_sale_commission_partner_report" model="ir.actions.act_window">
+        <field name="name">Partner Commissions</field>
+        <field name="res_model">sale.commission.partner.report</field>
+        <field name="view_mode">list,pivot,graph</field>
+        <field name="context">{'search_default_group_partner': 1, 'search_default_this_month': 1}</field>
+    </record>
+
+    <menuitem id="menu_sale_commission_partner_report"
+              name="Partner Commissions"
+              parent="sale_commission.menu_sale_commission"
+              action="action_sale_commission_partner_report"
+              sequence="20"/>
+</odoo>

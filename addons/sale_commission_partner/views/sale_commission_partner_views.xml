@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="sale_commission_plan_form_partner" model="ir.ui.view">
+        <field name="name">sale.commission.plan.form.partner</field>
+        <field name="model">sale.commission.plan</field>
+        <field name="inherit_id" ref="sale_commission.sale_commission_plan_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='user_type']" position="after">
+                <field name="partner_ids" invisible="user_type != 'partner'">
+                    <list editable="bottom">
+                        <field name="partner_id"/>
+                        <field name="date_from"/>
+                        <field name="date_to"/>
+                    </list>
+                </field>
+            </xpath>
+        </field>
+    </record>
+</odoo>
