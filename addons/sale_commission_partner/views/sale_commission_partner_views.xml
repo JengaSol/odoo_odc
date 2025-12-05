@@ -5,14 +5,23 @@
         <field name="model">sale.commission.plan</field>
         <field name="inherit_id" ref="sale_commission.sale_commission_plan_view_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//field[@name='user_type']" position="after">
-                <field name="partner_ids" invisible="user_type != 'partner'">
-                    <list editable="bottom">
-                        <field name="partner_id"/>
-                        <field name="date_from"/>
-                        <field name="date_to"/>
-                    </list>
-                </field>
+            <xpath expr="//notebook[@name='main_book']" position="inside">
+                <page string="Agents" invisible="user_type != 'partner'">
+                    <field name="partner_ids">
+                        <list editable="bottom">
+                            <control>
+                                <create string="Add a new Agent"/>
+                            </control>
+                            <field name="partner_id"/>
+                            <field name="date_from"/>
+                            <field name="date_to"/>
+                        </list>
+                    </field>
+                    <button string="Add Multiple Agents" type="action" name="%(sale_commission_partner.action_sale_commission_add_multiple_partner)d"/>
+                </page>
+            </xpath>
+            <xpath expr="//field[@name='user_ids']/.." position="attributes">
+                <attribute name="invisible">user_type == 'partner'</attribute>
             </xpath>
         </field>
     </record>

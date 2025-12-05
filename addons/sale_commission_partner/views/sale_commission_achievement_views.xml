@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="sale_commission_achievement_view_list_partner" model="ir.ui.view">
+        <field name="name">sale.commission.achievement.view.list.partner</field>
+        <field name="model">sale.commission.achievement</field>
+        <field name="inherit_id" ref="sale_commission.sale_commission_achievement_view_list"/>
+        <field name="arch" type="xml">
+            <field name="add_user_id" position="after">
+                <field name="add_partner_id" optional="show"/>
+            </field>
+            <field name="reduce_user_id" position="after">
+                <field name="reduce_partner_id" optional="show"/>
+            </field>
+        </field>
+    </record>
+
+    <record id="sale_commission_achievement_view_search_partner" model="ir.ui.view">
+        <field name="name">sale.commission.achievement.view.search.partner</field>
+        <field name="model">sale.commission.achievement</field>
+        <field name="inherit_id" ref="sale_commission.sale_commission_achievement_view_search"/>
+        <field name="arch" type="xml">
+            <field name="add_user_id" position="after">
+                <field name="add_partner_id"/>
+            </field>
+            <field name="reduce_user_id" position="after">
+                <field name="reduce_partner_id"/>
+            </field>
+        </field>
+    </record>
+</odoo>

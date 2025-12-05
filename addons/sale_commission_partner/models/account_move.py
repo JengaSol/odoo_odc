@@ -66,7 +66,7 @@ class AccountMove(models.Model):
             
             date_from = data['date_from']
             date_to = data['date_to']
-            description = _("Commission for period %s - %s") % (date_from, date_to)
+            description = _("Commission for period %s - %s (%s)") % (date_from, date_to, self.name)
             
             self.env['account.move'].create({
                 'move_type': 'in_invoice',

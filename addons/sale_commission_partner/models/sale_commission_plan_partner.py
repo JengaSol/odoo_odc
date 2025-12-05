@@ -8,10 +8,23 @@ class SaleCommissionPlanPartner(models.Model):
     _description = "Commission Plan Partner"
     _order = 'date_from'
 
+    _rec_name = 'name'
+
     plan_id = fields.Many2one('sale.commission.plan', "Commission Plan", required=True, ondelete='cascade')
     partner_id = fields.Many2one('res.partner', "Partner", required=True, ondelete='cascade')
     date_from = fields.Date("From", default=fields.Date.today, required=True)
     date_to = fields.Date("To")
+    name = fields.Char(compute='_compute_name', store=True)
+
+    @api.depends('partner_id', 'plan_id')
+    def _compute_name(self):
+        for record in self:
+            record.name = f"{record.partner_id.name} ({record.plan_id.name})"
+
+    @api.depends('partner_id', 'plan_id')
+    def _compute_display_name(self):
+        for record in self:
+            record.display_name = f"{record.partner_id.name} ({record.plan_id.name})"
 
     def _check_plan_partner_overlap(self, mode):
         """ Check if the partner is already assigned to a plan for the same period. """

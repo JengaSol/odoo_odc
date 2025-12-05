@@ -6,7 +6,11 @@
         <field name="inherit_id" ref="base.view_partner_form"/>
         <field name="arch" type="xml">
             <div name="button_box" position="inside">
-                <!-- Add smart button if needed, or just a tab -->
+                <button name="action_view_commissions" type="object" class="oe_stat_button" icon="fa-dollar">
+                    <div class="o_stat_info">
+                        <span class="o_stat_text">Commissions</span>
+                    </div>
+                </button>
             </div>
             <page name="sales_purchases" position="after">
                 <page string="Commissions" name="commissions">

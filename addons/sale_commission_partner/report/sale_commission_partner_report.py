@@ -16,7 +16,7 @@ class SaleCommissionPartnerReport(models.Model):
     currency_id = fields.Many2one('res.currency', "Currency", readonly=True)
     company_id = fields.Many2one('res.company', string='Company', readonly=True)
     date = fields.Date(string="Date", readonly=True)
-    source_id = fields.Reference(selection=[('sale.order', 'Sale Order'), ('account.move', 'Invoice')], string="Source", readonly=True)
+    source_id = fields.Reference(selection=[('sale.order', 'Sale Order'), ('account.move', 'Invoice'), ('sale.commission.achievement', 'Adjustment')], string="Source", readonly=True)
 
     payment_state = fields.Selection(selection=[
         ('not_paid', 'Not Paid'),
@@ -46,6 +46,8 @@ class SaleCommissionPartnerReport(models.Model):
                 sub.payment_state
             FROM (
                 {self._query_invoices()}
+                UNION ALL
+                {self._query_adjustments()}
             ) AS sub
         """
 
@@ -114,4 +116,27 @@ class SaleCommissionPartnerReport(models.Model):
             WHERE order_head.state = 'sale'
               AND sol.agent_id IS NOT NULL
               AND order_head.date_order::date BETWEEN plan_partner.date_from AND COALESCE(plan_partner.date_to, '2099-12-31')
+        """
+
+    def _query_adjustments(self):
+        return f"""
+            SELECT
+                plan.id AS plan_id,
+                partner.id AS partner_id,
+                0.0 AS achieved,
+                CASE 
+                    WHEN sca.add_partner_id = plan_partner.id THEN sca.achieved 
+                    WHEN sca.reduce_partner_id = plan_partner.id THEN -sca.achieved 
+                    ELSE 0.0
+                END AS commission,
+                sca.currency_id AS currency_id,
+                sca.company_id AS company_id,
+                sca.date AS date,
+                concat('sale.commission.achievement,', sca.id) AS source_id,
+                'paid' AS payment_state
+            FROM sale_commission_achievement sca
+            JOIN sale_commission_plan_partner plan_partner ON (sca.add_partner_id = plan_partner.id OR sca.reduce_partner_id = plan_partner.id)
+            JOIN res_partner partner ON plan_partner.partner_id = partner.id
+            JOIN sale_commission_plan plan ON plan_partner.plan_id = plan.id
+            WHERE sca.add_partner_id IS NOT NULL OR sca.reduce_partner_id IS NOT NULL
         """

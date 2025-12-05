@@ -23,33 +23,28 @@ class SaleCommissionMakeBill(models.TransientModel):
         if self.partner_ids:
             domain.append(('partner_id', 'in', self.partner_ids.ids))
             
-        commissions = self.env['sale.commission.partner.report'].read_group(
+        groups = self.env['sale.commission.partner.report']._read_group(
             domain,
-            ['partner_id', 'commission', 'currency_id'],
-            ['partner_id', 'currency_id'],
-            lazy=False
+            groupby=['partner_id', 'currency_id'],
+            aggregates=['commission:sum']
         )
 
-        if not commissions:
+        if not groups:
             raise UserError(_("No commissions found for the selected criteria."))
 
         moves = self.env['account.move']
         
         # 2. Group by Partner and Currency
-        for comm in commissions:
-            partner_id = comm['partner_id'][0]
-            currency_id = comm['currency_id'][0]
-            amount = comm['commission']
-            
+        for partner, currency, amount in groups:
             if amount <= 0:
                 continue
 
             # 3. Create Vendor Bill
             move_vals = {
                 'move_type': 'in_invoice',
-                'partner_id': partner_id,
+                'partner_id': partner.id,
                 'invoice_date': fields.Date.context_today(self),
-                'currency_id': currency_id,
+                'currency_id': currency.id,
                 'invoice_line_ids': [
                     (0, 0, {
                         'product_id': self.product_id.id,

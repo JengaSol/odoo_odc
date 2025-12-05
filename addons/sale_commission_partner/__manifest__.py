@@ -15,7 +15,10 @@
     'data': [
         'data/product_data.xml',
         'security/ir.model.access.csv',
+        'wizard/sale_commission_add_multiple_partner_views.xml',
         'views/sale_commission_partner_views.xml',
+        'views/sale_commission_achievement_views.xml',
+        'views/sale_commission_menus.xml',
         'views/res_partner_views.xml',
         'views/sale_order_views.xml',
         'report/sale_commission_partner_report.xml',

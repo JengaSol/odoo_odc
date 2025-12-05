@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Hide My Commissions -->
+    <record id="sale_commission.sale_commission_my_menu" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
+
+    <!-- Hide Commissions (Sales Manager Report) -->
+    <record id="sale_commission.sale_commission_plan_report_menu" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
+
+    <!-- Hide Achievements Report -->
+    <record id="sale_commission.sale_commission_achievement_report_menu" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
+    
+    <!-- Hide Commissions in Reporting -->
+    <record id="sale_commission.sale_commission_plan_report_menu_report" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
+</odoo>

@@ -26,3 +26,16 @@ class SaleCommissionPlan(models.Model):
     def _extract_past_partners(partner_ids):
         today = fields.Date.today()
         return [p for p in partner_ids if len(p) == 3 and not p[2].get('date_to') or p[2]['date_to'] >= today]
+
+    def action_open_commission(self):
+        self.ensure_one()
+        if self.user_type == 'partner':
+            return {
+                "type": "ir.actions.act_window",
+                "res_model": "sale.commission.partner.report",
+                "name": "Related commissions",
+                "views": [[self.env.ref('sale_commission_partner.view_sale_commission_partner_report_tree').id, "list"]],
+                "domain": [('plan_id', '=', self.id)],
+                "context": {'search_default_plan_id': self.id},
+            }
+        return super().action_open_commission()
