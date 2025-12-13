@@ -10,6 +10,7 @@
             </field>
             <xpath expr="//field[@name='order_line']/list/field[@name='name']" position="after">
                 <field name="agent_id" optional="show"/>
+                <field name="commission_amount" optional="show" widget="monetary"/>
             </xpath>
         </field>
     </record>
