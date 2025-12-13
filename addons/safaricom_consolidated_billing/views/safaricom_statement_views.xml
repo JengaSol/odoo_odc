@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_safaricom_statement_form" model="ir.ui.view">
+        <field name="name">safaricom.statement.form</field>
+        <field name="model">safaricom.statement</field>
+        <field name="arch" type="xml">
+            <form string="Statement">
+                <header>
+                    <button name="action_import_pdf" string="Import PDF" type="object" class="oe_highlight" invisible="state != 'draft'"/>
+                    <button name="action_post_statement" string="Post to Odoo" type="object" class="oe_highlight" invisible="state != 'imported'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,imported,posted"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="statement_date"/>
+                            <field name="due_date"/>
+                            <field name="partner_id" domain="[('is_safaricom_account', '=', True)]" context="{'default_is_safaricom_account': True}"/>
+                        </group>
+                        <group>
+                            <field name="total_amount_due"/>
+                            <field name="currency_id" invisible="1"/>
+                            <field name="pdf_file" filename="pdf_filename"/>
+                            <field name="pdf_filename" invisible="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Invoice Lines" name="invoice_lines">
+                            <field name="invoice_line_ids">
+                                <list editable="bottom" create="0">
+                                    <field name="subscriber_number"/>
+                                    <field name="partner_id" domain="[('is_safaricom_subscriber', '=', True)]"/>
+                                    <field name="invoice_number"/>
+                                    <field name="period"/>
+                                    <field name="description"/>
+                                    <field name="amount" sum="Total"/>
+                                    <field name="odoo_invoice_id" widget="many2one_button"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Payments" name="payments">
+                            <field name="payment_ids">
+                                <list editable="bottom" create="0">
+                                    <field name="date"/>
+                                    <field name="reference"/>
+                                    <field name="amount" sum="Total"/>
+                                    <field name="odoo_payment_id" widget="many2one_button"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Adjustments" name="adjustments">
+                            <field name="adjustment_ids">
+                                <list editable="bottom" create="0">
+                                    <field name="date"/>
+                                    <field name="reference"/>
+                                    <field name="description"/>
+                                    <field name="amount" sum="Total"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Raw Data (Debug)" name="raw_data">
+                            <field name="text_content"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_safaricom_statement_tree" model="ir.ui.view">
+        <field name="name">safaricom.statement.list</field>
+        <field name="model">safaricom.statement</field>
+        <field name="arch" type="xml">
+            <list string="Statements">
+                <field name="statement_date"/>
+                <field name="partner_id"/>
+                <field name="total_amount_due"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+</odoo>

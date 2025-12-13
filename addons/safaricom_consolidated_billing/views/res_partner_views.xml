@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_partner_form_safaricom" model="ir.ui.view">
+        <field name="name">res.partner.form.safaricom</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <div name="button_box" position="inside">
+                <!-- Smart buttons could go here -->
+            </div>
+            
+            <group name="purchase" position="after">
+                <group string="Safaricom Billing" name="safaricom_billing">
+                    <field name="is_safaricom_account"/>
+                    <field name="is_safaricom_subscriber"/>
+                    <field name="safaricom_number" invisible="not is_safaricom_account and not is_safaricom_subscriber"/>
+                    <field name="safaricom_service_product_id" invisible="not is_safaricom_subscriber"/>
+                </group>
+            </group>
+        </field>
+    </record>
+
+    <!-- Search view extension to filter Safaricom Partners -->
+    <record id="view_res_partner_filter_safaricom" model="ir.ui.view">
+        <field name="name">res.partner.select.safaricom</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_res_partner_filter"/>
+        <field name="arch" type="xml">
+            <filter name="type_company" position="after">
+                <separator/>
+                <filter string="Safaricom Accounts" name="safaricom_accounts" domain="[('is_safaricom_account', '=', True)]"/>
+                <filter string="Safaricom Subscribers" name="safaricom_subscribers" domain="[('is_safaricom_subscriber', '=', True)]"/>
+            </filter>
+        </field>
+    </record>
+</odoo>

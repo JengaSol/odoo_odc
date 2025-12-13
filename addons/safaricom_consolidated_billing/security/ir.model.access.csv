@@ -1,0 +1,6 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+
+access_safaricom_statement_user,safaricom.statement.user,model_safaricom_statement,base.group_user,1,1,1,1
+access_safaricom_invoice_line_user,safaricom.invoice.line.user,model_safaricom_invoice_line,base.group_user,1,1,1,1
+access_safaricom_payment_user,safaricom.payment.user,model_safaricom_payment,base.group_user,1,1,1,1
+access_safaricom_adjustment_user,safaricom.adjustment.user,model_safaricom_adjustment,base.group_user,1,1,1,1
