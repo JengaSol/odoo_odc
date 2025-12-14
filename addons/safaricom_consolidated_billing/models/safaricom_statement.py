@@ -17,7 +17,14 @@ class SafaricomStatement(models.Model):
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'statement_date desc, id desc'
 
-    name = fields.Char(string='Statement Reference', required=True, copy=False, readonly=True, default=lambda self: _('New'))
+    name = fields.Char(string='Statement Reference', required=True, copy=False, readonly=True, index=True, default=lambda self: _('New'))
+    
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            if vals.get('name', _('New')) == _('New'):
+                vals['name'] = self.env['ir.sequence'].next_by_code('safaricom.statement') or _('New')
+        return super(SafaricomStatement, self).create(vals_list)
     
     # Changed to res.partner
     partner_id = fields.Many2one('res.partner', string='Main Account (Partner)', required=True, tracking=True, domain=[('is_safaricom_account', '=', True)])
@@ -25,8 +32,14 @@ class SafaricomStatement(models.Model):
     statement_date = fields.Date(string='Statement Date', required=True, tracking=True)
     due_date = fields.Date(string='Due Date')
     
-    total_amount_due = fields.Monetary(string='Total Amount Due', currency_field='currency_id', tracking=True)
+    # Computed Total
+    total_amount_due = fields.Monetary(string='Total Amount Due', currency_field='currency_id', compute='_compute_total_amount_due', store=True, tracking=True)
     currency_id = fields.Many2one('res.currency', string='Currency', default=lambda self: self.env.company.currency_id)
+    
+    @api.depends('invoice_line_ids.amount')
+    def _compute_total_amount_due(self):
+        for record in self:
+            record.total_amount_due = sum(record.invoice_line_ids.mapped('amount'))
     
     pdf_file = fields.Binary(string='PDF Statement', attachment=True, required=True)
     pdf_filename = fields.Char(string='PDF Filename')
@@ -194,21 +207,34 @@ class SafaricomStatement(models.Model):
         # Get Safaricom Taxes
         safaricom_taxes = self._get_safaricom_taxes()
         
-        # Prepare Invoice Data
+        # Check Configuration
+        # 'safaricom.tax_breakdown' is stored as string 'True'/'False' or not set.
+        # Default to False if not set
+        tax_breakdown_config = self.env['ir.config_parameter'].sudo().get_param('safaricom.tax_breakdown', 'False')
+        is_tax_breakdown = tax_breakdown_config.lower() == 'true'
+
+        # Prepare Invoice Data and Create Invoices
         for partner, lines in lines_by_partner.items():
             invoice_lines = []
             for line in lines:
-                # Determine product to use: Partner specific > Standard 'Subscription' > Fallback
+                # Determine product
                 product = partner.safaricom_service_product_id
                 if not product:
                     product = self.env['product.product'].search([('name', '=', 'Subscription')], limit=1)
                 
-                # If still no product found, we can create a text-based line or specific product
+                # Setup Line Logic based on Config
+                if is_tax_breakdown:
+                    price_unit = line.net_amount
+                    taxes = [(6, 0, safaricom_taxes.ids)]
+                else:
+                    price_unit = line.amount
+                    taxes = []
+
                 line_val = {
                     'name': f"{line.description} ({line.invoice_number})",
                     'quantity': 1,
-                    'price_unit': line.net_amount, 
-                    'tax_ids': [(6, 0, safaricom_taxes.ids)],
+                    'price_unit': price_unit, 
+                    'tax_ids': taxes,
                 }
                 if product:
                     line_val['product_id'] = product.id
@@ -222,20 +248,14 @@ class SafaricomStatement(models.Model):
                 'invoice_line_ids': invoice_lines,
                 'ref': f"Safaricom Statement {self.name}",
             }
-            move_vals_list.append(move_vals)
+            
+            # Create Invoice
+            move = self.env['account.move'].create(move_vals)
+            
+            # Link Safaricom Lines to this Odoo Invoice
+            for line in lines:
+                line.odoo_invoice_id = move.id
         
-        # Create Invoices
-        if move_vals_list:
-            moves = self.env['account.move'].create(move_vals_list)
-            
-            # Post invoices if desired? Or leave as Draft? 
-            # Usually Draft is safer for review.
-            
-            # Link back to lines
-            # This is tricky because we created bulk invoices. 
-            # We can iterate and link if we want, but complexity increases.
-            pass
-
         self.state = 'posted'
 
     def _get_safaricom_taxes(self):
@@ -309,7 +329,7 @@ class SafaricomInvoiceLine(models.Model):
     
     description = fields.Char(string='Description')
 
-    odoo_invoice_id = fields.Many2one('account.move', string='Created Invoice')
+    odoo_invoice_id = fields.Many2one('account.move', string='Created Invoice', readonly=True)
 
 
 class SafaricomPayment(models.Model):

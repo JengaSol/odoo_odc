@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form_safaricom" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.safaricom</field>
+        <field name="model">res.config.settings</field>
+        <field name="priority" eval="90"/>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app_data string="Safaricom Billing" name="safaricom_billing" data-string="Safaricom Billing" data-key="safaricom_consolidated_billing">
+                    <block title="Invoicing Settings" name="safaricom_invoicing_settings">
+                        <setting id="safaricom_taxes_setting" help="Configure how taxes are handled on generated invoices.">
+                            <field name="safaricom_tax_breakdown"/>
+                            <div class="text-muted">
+                                Check to show Net Amount + Taxes. Uncheck to show only Total Billed Amount.
+                            </div>
+                        </setting>
+                    </block>
+                </app_data>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="action_safaricom_config_settings" model="ir.actions.act_window">
+        <field name="name">Settings</field>
+        <field name="res_model">res.config.settings</field>
+        <field name="view_mode">form</field>
+        <field name="context">{'module': 'safaricom_consolidated_billing'}</field>
+    </record>
+
+    <menuitem id="menu_safaricom_settings"
+              name="Settings"
+              parent="menu_safaricom_billing_root"
+              sequence="100"
+              action="action_safaricom_config_settings"
+              groups="base.group_system"/>
+</odoo>

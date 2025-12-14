@@ -13,7 +13,9 @@
     'data': [
         'security/ir.model.access.csv',
         'data/product_data.xml',
+        'data/ir_sequence_data.xml',
         'views/menus.xml',
+        'views/res_config_settings_views.xml',
         'views/res_partner_views.xml',
         'views/safaricom_statement_views.xml',
     ],
