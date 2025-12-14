@@ -191,6 +191,9 @@ class SafaricomStatement(models.Model):
             
         move_vals_list = []
         
+        # Get Safaricom Taxes
+        safaricom_taxes = self._get_safaricom_taxes()
+        
         # Prepare Invoice Data
         for partner, lines in lines_by_partner.items():
             invoice_lines = []
@@ -198,17 +201,14 @@ class SafaricomStatement(models.Model):
                 # Determine product to use: Partner specific > Standard 'Subscription' > Fallback
                 product = partner.safaricom_service_product_id
                 if not product:
-                    product = self.env['product.product'].search([('name', '=', 'Safaricom Subscription')], limit=1)
+                    product = self.env['product.product'].search([('name', '=', 'Subscription')], limit=1)
                 
                 # If still no product found, we can create a text-based line or specific product
                 line_val = {
                     'name': f"{line.description} ({line.invoice_number})",
                     'quantity': 1,
-                    'price_unit': line.net_amount, # Taxes might be auto-calculated by Odoo tax based on product? 
-                    # If we want exact match with PDF, checking taxes is tricky. 
-                    # Ideally we trust the PDF Net + VAT. 
-                    # For simplicity, putting Net Amount and hoping taxes match or using 'Tax Included' if needed.
-                    # Let's assume standard VAT 16% for now or just Net.
+                    'price_unit': line.net_amount, 
+                    'tax_ids': [(6, 0, safaricom_taxes.ids)],
                 }
                 if product:
                     line_val['product_id'] = product.id
@@ -237,6 +237,54 @@ class SafaricomStatement(models.Model):
             pass
 
         self.state = 'posted'
+
+    def _get_safaricom_taxes(self):
+        """
+        Finds or creates VAT 18.4% and Excise 15%.
+        """
+        Tax = self.env['account.tax']
+        taxes = Tax.browse()
+        
+        # 1. VAT 18.4%
+        vat_tax = Tax.search([('name', '=', 'VAT 18.4%'), ('type_tax_use', '=', 'sale'), ('company_id', '=', self.env.company.id)], limit=1)
+        if not vat_tax:
+            # Try to find a tax group, or create one? 
+            # Usually standard Odoo has Tax Groups. We'll rely on default or first found if needed, or simple string.
+            # Odoo 17+ uses tax_group_id. 
+            # We will use a fallback logic for tax group.
+            tax_group = self.env['account.tax.group'].search([('name', 'ilike', 'VAT')], limit=1)
+            if not tax_group:
+                 tax_group = self.env['account.tax.group'].search([], limit=1)
+                 
+            vat_tax = Tax.create({
+                'name': 'VAT 18.4%',
+                'amount': 18.4,
+                'amount_type': 'percent',
+                'type_tax_use': 'sale',
+                'tax_group_id': tax_group.id,
+                'company_id': self.env.company.id,
+            })
+        taxes += vat_tax
+        
+        # 2. Excise 15%
+        excise_tax = Tax.search([('name', '=', 'Excise Duty 15%'), ('type_tax_use', '=', 'sale'), ('company_id', '=', self.env.company.id)], limit=1)
+        if not excise_tax:
+            tax_group = self.env['account.tax.group'].search([('name', 'ilike', 'Excise')], limit=1)
+            if not tax_group:
+                 # Fallback to VAT group or any
+                 tax_group = self.env['account.tax.group'].search([], limit=1)
+            
+            excise_tax = Tax.create({
+                'name': 'Excise Duty 15%',
+                'amount': 15.0,
+                'amount_type': 'percent',
+                'type_tax_use': 'sale',
+                'tax_group_id': tax_group.id,
+                'company_id': self.env.company.id,
+            })
+        taxes += excise_tax
+        
+        return taxes
 
 
 class SafaricomInvoiceLine(models.Model):

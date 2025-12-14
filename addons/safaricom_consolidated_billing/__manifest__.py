@@ -8,7 +8,7 @@
         It parses the PDF to extract invoice lines per subscriber, payments, and adjustments,
         and facilitates reconciliation with Odoo partners and accounts.
     """,
-    'author': 'ODC',
+    'author': 'AthmanZiri',
     'depends': ['base', 'account', 'mail'],
     'data': [
         'security/ir.model.access.csv',
