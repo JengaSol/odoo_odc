@@ -56,8 +56,8 @@ class SaleCommissionPartnerReport(models.Model):
             SELECT
                 plan.id AS plan_id,
                 aml.agent_id AS partner_id,
-                aml.price_subtotal AS achieved,
-                (aml.price_subtotal * COALESCE(rule.rate, 0.0)) AS commission,
+                (CASE WHEN move.move_type = 'out_refund' THEN -aml.price_subtotal ELSE aml.price_subtotal END) AS achieved,
+                (CASE WHEN move.move_type = 'out_refund' THEN -aml.price_subtotal ELSE aml.price_subtotal END * COALESCE(rule.rate, 0.0)) AS commission,
                 move.currency_id AS currency_id,
                 move.company_id AS company_id,
                 move.date AS date,
