@@ -85,6 +85,18 @@ class SafaricomStatement(models.Model):
 
     def _parse_extracted_text(self, text):
         self.ensure_one()
+        
+        # Detect billing format type
+        if 'Charge Share USG Parent Account' in text:
+            # Bongapoints billing format
+            self._parse_bongapoints_format(text)
+        else:
+            # Standard billing format
+            self._parse_standard_format(text)
+    
+    def _parse_standard_format(self, text):
+        """Parse standard Safaricom billing format."""
+        self.ensure_one()
         # Regex Patterns
 
         # Invoice Summary: Name | Subscriber | Invoice | Net | VAT | Excise | Total
@@ -166,6 +178,153 @@ class SafaricomStatement(models.Model):
                     'date': trans_date,
                     'reference': f"{data['ref1']} / {data['ref2']}",
                     'amount': amount * -1, # Payments are negative in the bill
+                })
+            elif data['type'] in ['ADJ', 'TRF']:
+                adjustments.append({
+                    'statement_id': self.id,
+                    'date': trans_date,
+                    'reference': f"{data['ref1']} / {data['ref2']}",
+                    'description': f"Adjustment ({data['type']})",
+                    'amount': amount,
+                })
+        
+        if payments:
+            self.env['safaricom.payment'].create(payments)
+        if adjustments:
+            self.env['safaricom.adjustment'].create(adjustments)
+    
+    def _parse_bongapoints_format(self, text):
+        """Parse Bongapoints billing format with charge sharing."""
+        self.ensure_one()
+        
+        # Clear existing data if re-importing
+        self.invoice_line_ids.unlink()
+        self.payment_ids.unlink()
+        self.adjustment_ids.unlink()
+        
+        # Pattern for TAX INVOICE SUMMARY
+        # The actual format from PDF is:
+        # TAX INVOICE SUMMARY
+        # Name Reference NO. INVOICE NO. Net Amount VAT EXCISE BILLED AMOUNT
+        # ODC SBT AFRICA LIMI
+        # TED 1-460477391864 B1-40022628051 9,616.81 1,769.51 1,442.55 12,828.87
+        # Note: Company name can wrap across multiple lines
+        # We look for the reference number pattern (digits-digits) followed by invoice and amounts
+        tax_invoice_summary_pattern = re.compile(
+            r"(1-\d+)\s+"  # Reference NO (e.g., 1-460477391864)
+            r"(B1-\d+)\s+"  # Invoice NO (e.g., B1-40022628051)
+            r"([\d,]+\.?\d*)\s+"  # Net Amount
+            r"([\d,]+\.?\d*)\s+"  # VAT
+            r"([\d,]+\.?\d*)\s+"  # Excise
+            r"([\d,]+\.?\d*)",     # Total/Billed Amount
+            re.MULTILINE
+        )
+        
+        # Pattern for Charge Share lines
+        # Charge Share USG Parent Account (01/11/2025 - 30/11/2025) Telephony Charge Share -709915000 166.97
+        charge_share_pattern = re.compile(
+            r"Charge Share USG Parent Account.*?"
+            r"-(?P<subscriber>\d+)\s+"
+            r"(?P<amount>[\d,.-]+)",
+            re.MULTILINE
+        )
+        
+        # Payment/Adjustment Pattern (same as standard)
+        transaction_pattern = re.compile(
+            r"(?P<date>\d{2}/\d{2}/\d{4})\s+(?P<ref1>\S+)\s+(?P<ref2>\S+)\s+(?P<type>PYT|ADJ|INV|TRF):(?P<amount>[\d,.-]+)",
+            re.MULTILINE
+        )
+        
+        # 1. Parse TAX INVOICE SUMMARY to get parent invoice details
+        summary_match = tax_invoice_summary_pattern.search(text)
+        if not summary_match:
+            raise UserError(_("Could not find TAX INVOICE SUMMARY in Bongapoints format. Please check the PDF format."))
+        
+        parent_ref_no = summary_match.group(1)
+        parent_inv_no = summary_match.group(2)
+        parent_net = self._parse_money(summary_match.group(3))
+        parent_vat = self._parse_money(summary_match.group(4))
+        parent_excise = self._parse_money(summary_match.group(5))
+        parent_total = self._parse_money(summary_match.group(6))
+        
+        # 2. Parse Charge Share lines to create invoice lines for each subscriber
+        charge_shares = []
+        for match in charge_share_pattern.finditer(text):
+            data = match.groupdict()
+            subscriber_no = data['subscriber']
+            amount = self._parse_money(data['amount'])
+            
+            # Calculate proportional tax breakdown
+            # Each subscriber's share is proportional to their amount vs total
+            if parent_total > 0:
+                proportion = amount / parent_total
+                sub_net = parent_net * proportion
+                sub_vat = parent_vat * proportion
+                sub_excise = parent_excise * proportion
+            else:
+                sub_net = amount
+                sub_vat = 0.0
+                sub_excise = 0.0
+            
+            charge_shares.append({
+                'subscriber_no': subscriber_no,
+                'amount': amount,
+                'net_amount': sub_net,
+                'vat_amount': sub_vat,
+                'excise_amount': sub_excise,
+            })
+        
+        # 3. Create invoice lines for each subscriber
+        invoice_lines = []
+        for share in charge_shares:
+            # Find or create subscriber partner
+            subscriber_no = share['subscriber_no']
+            partner = self.env['res.partner'].search([('safaricom_number', '=', subscriber_no)], limit=1)
+            
+            if not partner:
+                # Create new partner with just the subscriber number as name
+                partner = self.env['res.partner'].create({
+                    'name': subscriber_no,
+                    'safaricom_number': subscriber_no,
+                    'is_safaricom_subscriber': True,
+                    'parent_id': self.partner_id.id,  # Link to main account
+                })
+            
+            invoice_lines.append({
+                'statement_id': self.id,
+                'partner_id': partner.id,
+                'subscriber_number': subscriber_no,
+                'invoice_number': parent_inv_no,
+                'description': f"Charge Share for {subscriber_no}",
+                'period': self.statement_date.strftime('%Y-%m') if self.statement_date else '',
+                'net_amount': share['net_amount'],
+                'vat_amount': share['vat_amount'],
+                'excise_amount': share['excise_amount'],
+                'amount': share['amount'],
+            })
+        
+        if invoice_lines:
+            self.env['safaricom.invoice.line'].create(invoice_lines)
+        
+        # 4. Parse Payments and Adjustments (same as standard format)
+        payments = []
+        adjustments = []
+        
+        for match in transaction_pattern.finditer(text):
+            data = match.groupdict()
+            try:
+                trans_date = datetime.strptime(data['date'], '%d/%m/%Y').date()
+            except ValueError:
+                continue  # Skip invalid dates
+            
+            amount = self._parse_money(data['amount'])
+            
+            if data['type'] == 'PYT':
+                payments.append({
+                    'statement_id': self.id,
+                    'date': trans_date,
+                    'reference': f"{data['ref1']} / {data['ref2']}",
+                    'amount': amount * -1,  # Payments are negative in the bill
                 })
             elif data['type'] in ['ADJ', 'TRF']:
                 adjustments.append({
