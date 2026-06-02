@@ -207,4 +207,85 @@ class TestSaleCommissionPartner(common.TransactionCase):
         self.assertTrue(report_paid, "Paid invoice should appear in partner commission report")
         self.assertAlmostEqual(report_paid.achieved, 5.0, msg="Achieved should be margin (10 - 5)")
         self.assertAlmostEqual(report_paid.commission, 0.25, msg="Commission should be 5% of margin")
+        invoice_line = invoice.invoice_line_ids.filtered(lambda line: line.agent_id)
+        self.assertTrue(invoice_line.commission_locked)
+        self.assertAlmostEqual(invoice_line.commission_amount, 0.25)
+
+        margin_plan.achievement_ids.rate = 0.10
+        self.env.flush_all()
+        report_after_rate_change = self.env['sale.commission.partner.report'].search([
+            ('partner_id', '=', self.partner_agent.id),
+            ('source_id', '=', f'account.move,{invoice.id}'),
+        ])
+        self.assertAlmostEqual(report_after_rate_change.commission, 0.25, msg="Locked commission must ignore plan rate changes")
+
+    def test_commission_locked_on_invoice_post(self):
+        """Non margin_invoice_paid commissions are locked when the invoice is posted."""
+        so = self.env['sale.order'].create({
+            'partner_id': self.partner_customer.id,
+            'agent_id': self.partner_agent.id,
+            'order_line': [Command.create({
+                'product_id': self.product.id,
+                'product_uom_qty': 1,
+                'price_unit': 100.0,
+            })],
+        })
+        so.action_confirm()
+        invoice = so._create_invoices()
+        invoice.action_post()
+
+        invoice_line = invoice.invoice_line_ids.filtered(lambda line: line.agent_id)
+        self.assertTrue(invoice_line.commission_locked)
+        self.assertAlmostEqual(invoice_line.commission_amount, 10.0)
+
+        self.commission_plan.achievement_ids.rate = 0.20
+        self.env.flush_all()
+        report_line = self.env['sale.commission.partner.report'].search([
+            ('partner_id', '=', self.partner_agent.id),
+            ('source_id', '=', f'account.move,{invoice.id}'),
+        ])
+        self.assertAlmostEqual(report_line.commission, 10.0, msg="Locked commission must ignore plan rate changes")
+
+        so.order_line.invalidate_recordset(['commission_amount'])
+        self.assertAlmostEqual(so.order_line.commission_amount, 10.0, msg="Locked SO commission must ignore plan rate changes")
+
+    def test_draft_commission_plan_not_applied_on_sale_order(self):
+        """Draft commission plans must not calculate partner commission on quotations."""
+        draft_plan = self.env['sale.commission.plan'].create({
+            'name': 'Draft only plan',
+            'user_type': 'partner',
+            'company_id': self.env.company.id,
+            'achievement_ids': [Command.create({
+                'type': 'margin_invoice_paid',
+                'rate': 0.125,
+            })],
+        })
+        agent = self.env['res.partner'].create({'name': 'Draft Agent'})
+        agent.write({
+            'commission_plan_ids': [Command.create({
+                'plan_id': draft_plan.id,
+                'date_from': fields.Date.today(),
+            })]
+        })
+        product = self.env['product.product'].create({
+            'name': 'Draft Product',
+            'list_price': 10.0,
+            'standard_price': 5.0,
+            'type': 'service',
+        })
+        so = self.env['sale.order'].create({
+            'partner_id': self.partner_customer.id,
+            'agent_id': agent.id,
+            'order_line': [Command.create({
+                'product_id': product.id,
+                'product_uom_qty': 1,
+                'price_unit': 10.0,
+            })],
+        })
+        self.assertAlmostEqual(so.order_line.commission_amount, 0.0)
+
+        draft_plan.action_approve()
+        so.order_line.invalidate_recordset(['commission_amount'])
+        so.order_line._compute_commission_amount()
+        self.assertAlmostEqual(so.order_line.commission_amount, 0.625)
 
