@@ -1,7 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 {
     'name': 'Sale Commission Partner',
-    'version': '1.0',
+    'version': '1.1',
     'category': 'Sales/Commission',
     'sequence': 105,
     'summary': "Manage commissions for external partners (Agents)",
@@ -21,9 +21,11 @@
         'views/sale_commission_menus.xml',
         'views/res_partner_views.xml',
         'views/sale_order_views.xml',
+        'views/account_move_views.xml',
         'report/sale_commission_partner_report.xml',
         'wizard/sale_commission_make_bill_views.xml',
     ],
     'installable': True,
+    'post_init_hook': 'post_init_hook',
     'license': 'OEEL-1',
 }
