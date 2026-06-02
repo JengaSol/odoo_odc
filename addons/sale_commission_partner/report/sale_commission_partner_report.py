@@ -83,9 +83,17 @@ class SaleCommissionPartnerReport(models.Model):
                 ELSE ({base_sql})
             END
         """
+        dynamic_achieved = f"({signed_base})"
+        dynamic_commission = f"({signed_base} * COALESCE(rule.rate, 0.0))"
         return f"""
-            ({signed_base}) AS achieved,
-            ({signed_base} * COALESCE(rule.rate, 0.0)) AS commission
+            CASE
+                WHEN aml.commission_locked IS TRUE THEN aml.commission_base
+                ELSE {dynamic_achieved}
+            END AS achieved,
+            CASE
+                WHEN aml.commission_locked IS TRUE THEN aml.commission_amount
+                ELSE {dynamic_commission}
+            END AS commission
         """
 
     def _query_invoices(self):
@@ -93,7 +101,7 @@ class SaleCommissionPartnerReport(models.Model):
         commission_cols = self._signed_commission_sql(base_sql)
         return f"""
             SELECT
-                plan.id AS plan_id,
+                COALESCE(aml.commission_plan_id, plan.id) AS plan_id,
                 aml.agent_id AS partner_id,
                 {commission_cols},
                 move.currency_id AS currency_id,
@@ -126,11 +134,13 @@ class SaleCommissionPartnerReport(models.Model):
             ) rule ON TRUE
             WHERE move.move_type IN ('out_invoice', 'out_refund')
               AND move.state = 'posted'
+              AND plan.state = 'approved'
               AND aml.display_type = 'product'
               AND aml.agent_id IS NOT NULL
               AND move.date BETWEEN plan_partner.date_from AND COALESCE(plan_partner.date_to, '2099-12-31')
               AND (
-                  rule.type IS DISTINCT FROM 'margin_invoice_paid'
+                  aml.commission_locked IS TRUE
+                  OR rule.type IS DISTINCT FROM 'margin_invoice_paid'
                   OR move.payment_state = 'paid'
               )
         """
@@ -165,6 +175,7 @@ class SaleCommissionPartnerReport(models.Model):
                 LIMIT 1
             ) rule ON TRUE
             WHERE order_head.state = 'sale'
+              AND plan.state = 'approved'
               AND sol.display_type IS NULL
               AND sol.agent_id IS NOT NULL
               AND order_head.date_order::date BETWEEN plan_partner.date_from AND COALESCE(plan_partner.date_to, '2099-12-31')
@@ -190,5 +201,6 @@ class SaleCommissionPartnerReport(models.Model):
             JOIN sale_commission_plan_partner plan_partner ON (sca.add_partner_id = plan_partner.id OR sca.reduce_partner_id = plan_partner.id)
             JOIN res_partner partner ON plan_partner.partner_id = partner.id
             JOIN sale_commission_plan plan ON plan_partner.plan_id = plan.id
-            WHERE sca.add_partner_id IS NOT NULL OR sca.reduce_partner_id IS NOT NULL
+            WHERE (sca.add_partner_id IS NOT NULL OR sca.reduce_partner_id IS NOT NULL)
+              AND plan.state = 'approved'
         """
