@@ -2,6 +2,7 @@
 
 from odoo import models, fields, api
 
+
 class SaleOrder(models.Model):
     _inherit = 'sale.order'
 
@@ -12,10 +13,38 @@ class SaleOrder(models.Model):
         for line in self.order_line:
             line.agent_id = self.agent_id
 
+    def action_confirm(self):
+        res = super().action_confirm()
+        self.mapped('order_line')._lock_partner_commission_preview()
+        return res
+
+
 class SaleOrderLine(models.Model):
-    _inherit = 'sale.order.line'
+    _inherit = ['sale.order.line', 'sale.commission.partner.mixin']
 
     agent_id = fields.Many2one('res.partner', string="Agent", help="The agent who will receive commission for this line.")
+    commission_plan_id = fields.Many2one(
+        'sale.commission.plan',
+        string='Commission Plan',
+        copy=False,
+        readonly=True,
+    )
+    commission_rule_type = fields.Char(
+        string='Commission Rule Type',
+        copy=False,
+        readonly=True,
+    )
+    commission_rate = fields.Float(
+        string='Commission Rate',
+        copy=False,
+        readonly=True,
+    )
+    commission_base = fields.Monetary(
+        string='Commission Base',
+        currency_field='currency_id',
+        copy=False,
+        readonly=True,
+    )
     commission_amount = fields.Monetary(
         string="Commission Amount",
         currency_field='currency_id',
@@ -24,67 +53,52 @@ class SaleOrderLine(models.Model):
         readonly=False,
         help="Commission amount for this line. Auto-calculated based on commission plan, but can be manually edited."
     )
+    commission_locked = fields.Boolean(
+        string='Commission Locked',
+        copy=False,
+        default=False,
+        readonly=True,
+    )
 
-    @api.depends('agent_id', 'product_id', 'price_subtotal', 'product_uom_qty', 'purchase_price')
+    @api.depends('agent_id', 'product_id', 'price_subtotal', 'product_uom_qty', 'purchase_price', 'commission_locked')
     def _compute_commission_amount(self):
         for line in self:
+            if line.commission_locked:
+                continue
             if not line.agent_id or not line.product_id:
                 line.commission_amount = 0.0
                 continue
-            
-            # Find active commission plan for this agent
-            plan_partner = self.env['sale.commission.plan.partner'].search([
-                ('partner_id', '=', line.agent_id.id),
-                ('plan_id.active', '=', True),
-                ('date_from', '<=', line.order_id.date_order or fields.Date.today()),
-                '|',
-                ('date_to', '=', False),
-                ('date_to', '>=', line.order_id.date_order or fields.Date.today())
-            ], limit=1)
-            
-            if not plan_partner:
-                line.commission_amount = 0.0
+
+            reference_date = line.order_id.date_order.date() if line.order_id.date_order else fields.Date.context_today(line)
+            snapshot = line._get_partner_commission_snapshot(
+                line.agent_id,
+                line.product_id,
+                reference_date,
+                price_subtotal=line.price_subtotal,
+                quantity=line.product_uom_qty,
+                purchase_price=line.purchase_price,
+                standard_price=line.product_id.standard_price,
+            )
+            line.commission_amount = snapshot['commission_amount'] if snapshot else 0.0
+
+    def _lock_partner_commission_preview(self):
+        for line in self.filtered(lambda sol: sol.agent_id and not sol.commission_locked):
+            reference_date = line.order_id.date_order.date() if line.order_id.date_order else fields.Date.context_today(line)
+            snapshot = line._get_partner_commission_snapshot(
+                line.agent_id,
+                line.product_id,
+                reference_date,
+                price_subtotal=line.price_subtotal,
+                quantity=line.product_uom_qty,
+                purchase_price=line.purchase_price,
+                standard_price=line.product_id.standard_price,
+            )
+            if not snapshot:
                 continue
-            
-            # Find matching commission rule
-            rule = self.env['sale.commission.plan.achievement'].search([
-                ('plan_id', '=', plan_partner.plan_id.id),
-                '|', ('product_id', '=', False), ('product_id', '=', line.product_id.id),
-                '|', ('product_categ_id', '=', False), ('product_categ_id', '=', line.product_id.categ_id.id)
-            ], order='product_id DESC, product_categ_id DESC', limit=1)
-            
-            if not rule:
-                line.commission_amount = 0.0
-                continue
-            
-            # Calculate commission based on type
-            # For sale orders, we always show the EXPECTED commission amount
-            # even if actual earning happens later (e.g., on invoice or payment)
-            commission_base = 0.0
-            
-            if rule.type in ('amount_sold', 'amount_invoiced'):
-                # Based on sale order/invoice amount
-                # Both use price_subtotal for sale orders (expected amount)
-                commission_base = line.price_subtotal
-            elif rule.type in ('qty_sold', 'qty_invoiced'):
-                # Based on quantity
-                # Both use ordered quantity for sale orders (expected quantity)
-                commission_base = line.product_uom_qty
-            elif rule.type in ('margin', 'margin_invoice_paid'):
-                # Based on margin (price_subtotal - cost)
-                # Show expected margin commission on sale order
-                # For margin_invoice_paid, actual earning happens when invoice is paid
-                cost = line.purchase_price * line.product_uom_qty
-                commission_base = line.price_subtotal - cost
-            else:
-                # Fallback for any other commission types
-                # Default to amount-based calculation
-                commission_base = line.price_subtotal
-            
-            line.commission_amount = commission_base * (rule.rate or 0.0)
+            snapshot['commission_locked'] = True
+            line.write(snapshot)
 
     def _prepare_invoice_line(self, **optional_values):
         res = super()._prepare_invoice_line(**optional_values)
         res['agent_id'] = self.agent_id.id
         return res
-
