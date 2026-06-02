@@ -29,7 +29,7 @@ class TestSaleCommissionPartner(common.TransactionCase):
             'company_id': cls.env.company.id,
             'achievement_ids': [Command.create({
                 'type': 'amount_sold',
-                'rate': 10.0,
+                'rate': 0.10,
             })],
         })
         cls.commission_plan.action_approve()
@@ -143,6 +143,68 @@ class TestSaleCommissionPartner(common.TransactionCase):
         ])
         self.assertTrue(bills_after, "Vendor Bill should be automatically generated")
         self.assertEqual(len(bills_after), 1, "Exactly one bill should be created")
-        self.assertAlmostEqual(bills_after.amount_total, 5.0, msg="Bill amount should be 5.0 (5% of 100)")
+        self.assertAlmostEqual(bills_after.amount_total, 10.0, msg="Bill amount should be 10.0 (10% of 100)")
         self.assertIn("Commission for period", bills_after.invoice_line_ids[0].name, "Bill line should have commission period description")
+
+    def test_margin_invoice_paid_commission_on_invoice(self):
+        """Commission on paid invoices must use margin, not subtotal."""
+        margin_plan = self.env['sale.commission.plan'].create({
+            'name': 'Agent 5% margin paid',
+            'user_type': 'partner',
+            'company_id': self.env.company.id,
+            'achievement_ids': [Command.create({
+                'type': 'margin_invoice_paid',
+                'rate': 0.05,
+            })],
+        })
+        margin_plan.action_approve()
+        self.partner_agent.write({
+            'commission_plan_ids': [Command.create({
+                'plan_id': margin_plan.id,
+                'date_from': fields.Date.today(),
+            })]
+        })
+
+        product = self.env['product.product'].create({
+            'name': 'Margin Product',
+            'list_price': 10.0,
+            'standard_price': 5.0,
+            'type': 'service',
+        })
+        so = self.env['sale.order'].create({
+            'partner_id': self.partner_customer.id,
+            'agent_id': self.partner_agent.id,
+            'order_line': [Command.create({
+                'product_id': product.id,
+                'product_uom_qty': 1,
+                'price_unit': 10.0,
+            })],
+        })
+        so.action_confirm()
+        self.assertAlmostEqual(so.order_line.commission_amount, 0.25)
+
+        invoice = so._create_invoices()
+        invoice.action_post()
+        self.env.flush_all()
+
+        report_unpaid = self.env['sale.commission.partner.report'].search([
+            ('partner_id', '=', self.partner_agent.id),
+            ('source_id', '=', f'account.move,{invoice.id}'),
+        ])
+        self.assertFalse(report_unpaid, "Unpaid invoice should not appear for margin_invoice_paid")
+
+        payment_register = self.env['account.payment.register'].with_context(
+            active_model='account.move',
+            active_ids=invoice.ids,
+        ).create({'payment_date': fields.Date.today()})
+        payment_register.action_create_payments()
+        self.env.flush_all()
+
+        report_paid = self.env['sale.commission.partner.report'].search([
+            ('partner_id', '=', self.partner_agent.id),
+            ('source_id', '=', f'account.move,{invoice.id}'),
+        ])
+        self.assertTrue(report_paid, "Paid invoice should appear in partner commission report")
+        self.assertAlmostEqual(report_paid.achieved, 5.0, msg="Achieved should be margin (10 - 5)")
+        self.assertAlmostEqual(report_paid.commission, 0.25, msg="Commission should be 5% of margin")
 

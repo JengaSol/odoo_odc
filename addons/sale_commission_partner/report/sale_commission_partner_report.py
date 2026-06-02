@@ -51,13 +51,51 @@ class SaleCommissionPartnerReport(models.Model):
             ) AS sub
         """
 
+    def _product_cost_sql(self, product_alias='pp', company_alias='move'):
+        """Return unit product cost from company-dependent standard_price storage."""
+        return f"COALESCE(({product_alias}.standard_price->>{company_alias}.company_id::text)::numeric, 0)"
+
+    def _commission_base_sql(self, line_alias='aml', sol_alias='sol', product_alias='pp', company_alias='move'):
+        """Return the SQL expression for the commission base amount (unsigned)."""
+        unit_cost = self._product_cost_sql(product_alias, company_alias)
+        return f"""
+            CASE
+                WHEN rule.type IN ('margin', 'margin_invoice_paid') THEN
+                    {line_alias}.price_subtotal - (
+                        COALESCE(
+                            {sol_alias}.purchase_price * {line_alias}.quantity,
+                            {unit_cost} * {line_alias}.quantity,
+                            0
+                        )
+                    )
+                WHEN rule.type IN ('qty_sold', 'qty_invoiced') THEN
+                    {line_alias}.quantity
+                ELSE
+                    {line_alias}.price_subtotal
+            END
+        """
+
+    def _signed_commission_sql(self, base_sql, move_alias='move'):
+        """Return achieved and commission SQL columns with refund sign applied."""
+        signed_base = f"""
+            CASE
+                WHEN {move_alias}.move_type = 'out_refund' THEN -({base_sql})
+                ELSE ({base_sql})
+            END
+        """
+        return f"""
+            ({signed_base}) AS achieved,
+            ({signed_base} * COALESCE(rule.rate, 0.0)) AS commission
+        """
+
     def _query_invoices(self):
+        base_sql = self._commission_base_sql()
+        commission_cols = self._signed_commission_sql(base_sql)
         return f"""
             SELECT
                 plan.id AS plan_id,
                 aml.agent_id AS partner_id,
-                (CASE WHEN move.move_type = 'out_refund' THEN -aml.price_subtotal ELSE aml.price_subtotal END) AS achieved,
-                (CASE WHEN move.move_type = 'out_refund' THEN -aml.price_subtotal ELSE aml.price_subtotal END * COALESCE(rule.rate, 0.0)) AS commission,
+                {commission_cols},
                 move.currency_id AS currency_id,
                 move.company_id AS company_id,
                 move.date AS date,
@@ -71,7 +109,14 @@ class SaleCommissionPartnerReport(models.Model):
             LEFT JOIN product_product pp ON aml.product_id = pp.id
             LEFT JOIN product_template pt ON pp.product_tmpl_id = pt.id
             LEFT JOIN LATERAL (
-                SELECT rate
+                SELECT sol.purchase_price
+                FROM sale_order_line_invoice_rel rel
+                JOIN sale_order_line sol ON sol.id = rel.order_line_id
+                WHERE rel.invoice_line_id = aml.id
+                LIMIT 1
+            ) sol ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT rule.rate, rule.type
                 FROM sale_commission_plan_achievement rule
                 WHERE rule.plan_id = plan.id
                   AND (rule.product_id IS NULL OR rule.product_id = aml.product_id)
@@ -81,17 +126,23 @@ class SaleCommissionPartnerReport(models.Model):
             ) rule ON TRUE
             WHERE move.move_type IN ('out_invoice', 'out_refund')
               AND move.state = 'posted'
+              AND aml.display_type = 'product'
               AND aml.agent_id IS NOT NULL
               AND move.date BETWEEN plan_partner.date_from AND COALESCE(plan_partner.date_to, '2099-12-31')
+              AND (
+                  rule.type IS DISTINCT FROM 'margin_invoice_paid'
+                  OR move.payment_state = 'paid'
+              )
         """
 
     def _query_orders(self):
+        base_sql = self._commission_base_sql(line_alias='sol', sol_alias='sol', product_alias='pp', company_alias='order_head')
         return f"""
             SELECT
                 plan.id AS plan_id,
                 sol.agent_id AS partner_id,
-                sol.price_subtotal AS achieved,
-                (sol.price_subtotal * COALESCE(rule.rate, 0.0)) AS commission,
+                ({base_sql}) AS achieved,
+                ({base_sql} * COALESCE(rule.rate, 0.0)) AS commission,
                 order_head.currency_id AS currency_id,
                 order_head.company_id AS company_id,
                 order_head.date_order::date AS date,
@@ -105,7 +156,7 @@ class SaleCommissionPartnerReport(models.Model):
             LEFT JOIN product_product pp ON sol.product_id = pp.id
             LEFT JOIN product_template pt ON pp.product_tmpl_id = pt.id
             LEFT JOIN LATERAL (
-                SELECT rate
+                SELECT rule.rate, rule.type
                 FROM sale_commission_plan_achievement rule
                 WHERE rule.plan_id = plan.id
                   AND (rule.product_id IS NULL OR rule.product_id = sol.product_id)
@@ -114,6 +165,7 @@ class SaleCommissionPartnerReport(models.Model):
                 LIMIT 1
             ) rule ON TRUE
             WHERE order_head.state = 'sale'
+              AND sol.display_type IS NULL
               AND sol.agent_id IS NOT NULL
               AND order_head.date_order::date BETWEEN plan_partner.date_from AND COALESCE(plan_partner.date_to, '2099-12-31')
         """

@@ -11,7 +11,7 @@
     - Select Agents on Sale Order Lines.
     - Generate Vendor Bills for accrued commissions.
     """,
-    'depends': ['sale_commission', 'account'],
+    'depends': ['sale_commission', 'sale_commission_margin_paid', 'sale_margin', 'account'],
     'data': [
         'data/product_data.xml',
         'security/ir.model.access.csv',
