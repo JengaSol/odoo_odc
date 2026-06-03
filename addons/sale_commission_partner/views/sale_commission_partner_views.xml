@@ -5,6 +5,9 @@
         <field name="model">sale.commission.plan</field>
         <field name="inherit_id" ref="sale_commission.sale_commission_plan_view_form"/>
         <field name="arch" type="xml">
+            <xpath expr="//field[@name='company_id'][@groups='base.group_multi_company']" position="replace">
+                <field name="company_ids" widget="many2many_tags" options="{'no_create': True}" groups="base.group_multi_company" readonly="state != 'draft'"/>
+            </xpath>
             <xpath expr="//notebook[@name='main_book']" position="inside">
                 <page string="Agents" invisible="user_type != 'partner'">
                     <field name="partner_ids">
@@ -22,6 +25,17 @@
             </xpath>
             <xpath expr="//field[@name='user_ids']/.." position="attributes">
                 <attribute name="invisible">user_type == 'partner'</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="sale_commission_plan_list_partner" model="ir.ui.view">
+        <field name="name">sale.commission.plan.list.partner</field>
+        <field name="model">sale.commission.plan</field>
+        <field name="inherit_id" ref="sale_commission.sale_commission_plan_view_list"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='company_id']" position="replace">
+                <field name="company_ids" widget="many2many_tags" groups="base.group_multi_company"/>
             </xpath>
         </field>
     </record>

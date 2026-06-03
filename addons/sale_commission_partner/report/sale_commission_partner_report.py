@@ -55,6 +55,27 @@ class SaleCommissionPartnerReport(models.Model):
         """Return unit product cost from company-dependent standard_price storage."""
         return f"COALESCE(({product_alias}.standard_price->>{company_alias}.company_id::text)::numeric, 0)"
 
+    def _plan_company_filter_sql(self, plan_alias='plan', company_alias='move'):
+        """Restrict commission plans to the document company."""
+        return f"""
+            (
+                EXISTS (
+                    SELECT 1
+                    FROM sale_commission_plan_company_rel plan_company_rel
+                    WHERE plan_company_rel.plan_id = {plan_alias}.id
+                      AND plan_company_rel.company_id = {company_alias}.company_id
+                )
+                OR (
+                    NOT EXISTS (
+                        SELECT 1
+                        FROM sale_commission_plan_company_rel plan_company_rel
+                        WHERE plan_company_rel.plan_id = {plan_alias}.id
+                    )
+                    AND {plan_alias}.company_id = {company_alias}.company_id
+                )
+            )
+        """
+
     def _commission_base_sql(self, line_alias='aml', sol_alias='sol', product_alias='pp', company_alias='move'):
         """Return the SQL expression for the commission base amount (unsigned)."""
         unit_cost = self._product_cost_sql(product_alias, company_alias)
@@ -137,6 +158,7 @@ class SaleCommissionPartnerReport(models.Model):
               AND plan.state = 'approved'
               AND aml.display_type = 'product'
               AND aml.agent_id IS NOT NULL
+              AND {self._plan_company_filter_sql()}
               AND move.date BETWEEN plan_partner.date_from AND COALESCE(plan_partner.date_to, '2099-12-31')
               AND (
                   aml.commission_locked IS TRUE
@@ -178,6 +200,7 @@ class SaleCommissionPartnerReport(models.Model):
               AND plan.state = 'approved'
               AND sol.display_type IS NULL
               AND sol.agent_id IS NOT NULL
+              AND {self._plan_company_filter_sql(plan_alias='plan', company_alias='order_head')}
               AND order_head.date_order::date BETWEEN plan_partner.date_from AND COALESCE(plan_partner.date_to, '2099-12-31')
         """
 
@@ -203,4 +226,5 @@ class SaleCommissionPartnerReport(models.Model):
             JOIN sale_commission_plan plan ON plan_partner.plan_id = plan.id
             WHERE (sca.add_partner_id IS NOT NULL OR sca.reduce_partner_id IS NOT NULL)
               AND plan.state = 'approved'
+              AND {self._plan_company_filter_sql(plan_alias='plan', company_alias='sca')}
         """

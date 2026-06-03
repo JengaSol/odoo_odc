@@ -8,10 +8,10 @@ class SaleCommissionPartnerMixin(models.AbstractModel):
     _description = 'Partner Commission Computation Helpers'
 
     @api.model
-    def _get_partner_plan_partner(self, agent, reference_date):
+    def _get_partner_plan_partner(self, agent, reference_date, company=None):
         if not agent or not reference_date:
             return self.env['sale.commission.plan.partner']
-        return self.env['sale.commission.plan.partner'].search([
+        domain = [
             ('partner_id', '=', agent.id),
             ('plan_id.active', '=', True),
             ('plan_id.state', '=', 'approved'),
@@ -19,7 +19,10 @@ class SaleCommissionPartnerMixin(models.AbstractModel):
             '|',
             ('date_to', '=', False),
             ('date_to', '>=', reference_date),
-        ], limit=1)
+        ]
+        if company:
+            domain.append(('plan_id.company_ids', 'in', company.id))
+        return self.env['sale.commission.plan.partner'].search(domain, limit=1)
 
     @api.model
     def _get_partner_commission_rule(self, plan, product):
@@ -45,8 +48,8 @@ class SaleCommissionPartnerMixin(models.AbstractModel):
         return price_subtotal
 
     @api.model
-    def _get_partner_commission_snapshot(self, agent, product, reference_date, *, price_subtotal, quantity, purchase_price=0.0, standard_price=0.0):
-        plan_partner = self._get_partner_plan_partner(agent, reference_date)
+    def _get_partner_commission_snapshot(self, agent, product, reference_date, *, price_subtotal, quantity, purchase_price=0.0, standard_price=0.0, company=None):
+        plan_partner = self._get_partner_plan_partner(agent, reference_date, company=company)
         if not plan_partner:
             return False
         rule = self._get_partner_commission_rule(plan_partner.plan_id, product)

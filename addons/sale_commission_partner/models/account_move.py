@@ -66,6 +66,7 @@ class AccountMoveLine(models.Model):
             quantity=self.quantity,
             purchase_price=self._get_partner_commission_purchase_price(),
             standard_price=product.standard_price,
+            company=self.company_id,
         )
 
     def _apply_partner_commission_sign(self, values):

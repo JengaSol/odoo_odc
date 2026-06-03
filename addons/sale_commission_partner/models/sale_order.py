@@ -78,6 +78,7 @@ class SaleOrderLine(models.Model):
                 quantity=line.product_uom_qty,
                 purchase_price=line.purchase_price,
                 standard_price=line.product_id.standard_price,
+                company=line.company_id,
             )
             line.commission_amount = snapshot['commission_amount'] if snapshot else 0.0
 
@@ -92,6 +93,7 @@ class SaleOrderLine(models.Model):
                 quantity=line.product_uom_qty,
                 purchase_price=line.purchase_price,
                 standard_price=line.product_id.standard_price,
+                company=line.company_id,
             )
             if not snapshot:
                 continue

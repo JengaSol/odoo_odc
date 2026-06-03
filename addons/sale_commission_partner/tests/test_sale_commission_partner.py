@@ -312,3 +312,45 @@ class TestSaleCommissionPartner(common.TransactionCase):
         so.order_line._compute_commission_amount()
         self.assertAlmostEqual(so.order_line.commission_amount, 0.625)
 
+    def test_commission_plan_applies_to_multiple_companies(self):
+        """One commission plan can apply to several companies."""
+        company_b = self.env['res.company'].create({'name': 'Commission Company B'})
+        self.commission_plan.write({
+            'company_ids': [Command.set([self.env.company.id, company_b.id])],
+        })
+        self.assertFalse(self.commission_plan.company_id)
+        self.assertEqual(len(self.commission_plan.company_ids), 2)
+
+        so_company_a = self.env['sale.order'].create({
+            'partner_id': self.partner_customer.id,
+            'agent_id': self.partner_agent.id,
+            'order_line': [Command.create({
+                'product_id': self.product.id,
+                'product_uom_qty': 1,
+                'price_unit': 100.0,
+            })],
+        })
+        so_company_b = self.env['sale.order'].with_company(company_b).create({
+            'partner_id': self.partner_customer.id,
+            'agent_id': self.partner_agent.id,
+            'order_line': [Command.create({
+                'product_id': self.product.id,
+                'product_uom_qty': 2,
+                'price_unit': 100.0,
+            })],
+        })
+        self.assertAlmostEqual(so_company_a.order_line.commission_amount, 10.0)
+        self.assertAlmostEqual(so_company_b.order_line.commission_amount, 20.0)
+
+        company_c = self.env['res.company'].create({'name': 'Commission Company C'})
+        so_company_c = self.env['sale.order'].with_company(company_c).create({
+            'partner_id': self.partner_customer.id,
+            'agent_id': self.partner_agent.id,
+            'order_line': [Command.create({
+                'product_id': self.product.id,
+                'product_uom_qty': 1,
+                'price_unit': 100.0,
+            })],
+        })
+        self.assertAlmostEqual(so_company_c.order_line.commission_amount, 0.0)
+
