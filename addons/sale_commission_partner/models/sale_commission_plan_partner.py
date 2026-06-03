@@ -3,6 +3,7 @@
 from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError
 
+
 class SaleCommissionPlanPartner(models.Model):
     _name = 'sale.commission.plan.partner'
     _description = "Commission Plan Partner"
@@ -19,12 +20,22 @@ class SaleCommissionPlanPartner(models.Model):
     @api.depends('partner_id', 'plan_id')
     def _compute_name(self):
         for record in self:
-            record.name = f"{record.partner_id.name} ({record.plan_id.name})"
+            partner_name = record.partner_id.display_name if record.partner_id.exists() else _("Deleted Partner")
+            plan_name = record.plan_id.name or ''
+            record.name = f"{partner_name} ({plan_name})"
 
     @api.depends('partner_id', 'plan_id')
     def _compute_display_name(self):
         for record in self:
-            record.display_name = f"{record.partner_id.name} ({record.plan_id.name})"
+            partner_name = record.partner_id.display_name if record.partner_id.exists() else _("Deleted Partner")
+            plan_name = record.plan_id.name or ''
+            record.display_name = f"{partner_name} ({plan_name})"
+
+    @api.model
+    def _cleanup_orphan_records(self):
+        orphans = self.search([]).filtered(lambda record: not record.partner_id.exists())
+        orphans.unlink()
+        return len(orphans)
 
     def _check_plan_partner_overlap(self, mode):
         """ Check if the partner is already assigned to a plan for the same period. """

@@ -8,3 +8,4 @@ def post_init_hook(env):
     for plan in env['sale.commission.plan'].search([('company_id', '!=', False)]):
         if not plan.company_ids:
             plan.company_ids = [Command.set(plan.company_id.ids)]
+    env['sale.commission.plan.partner']._cleanup_orphan_records()

@@ -30,6 +30,10 @@
                         </list>
                     </field>
                     <button string="Add Multiple Agents" type="action" name="%(sale_commission_partner.action_sale_commission_add_multiple_partner)d"/>
+                    <button name="action_cleanup_orphan_agents" type="object"
+                            string="Remove deleted agents" class="btn-secondary"
+                            invisible="user_type != 'partner'"
+                            confirm="Remove agent assignments linked to deleted contacts?"/>
                 </page>
             </xpath>
             <xpath expr="//field[@name='user_ids']/.." position="attributes">

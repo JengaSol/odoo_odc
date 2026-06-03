@@ -1,7 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 {
     'name': 'Sale Commission Partner',
-    'version': '1.2',
+    'version': '1.3',
     'category': 'Sales/Commission',
     'sequence': 105,
     'summary': "Manage commissions for external partners (Agents)",

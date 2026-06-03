@@ -122,3 +122,20 @@ class SaleCommissionPlan(models.Model):
                 'default_plan_id': self.id,
             },
         }
+
+    def action_cleanup_orphan_agents(self):
+        orphans = self.env['sale.commission.plan.partner'].search([
+            ('plan_id', 'in', self.ids),
+        ]).filtered(lambda record: not record.partner_id.exists())
+        removed = len(orphans)
+        orphans.unlink()
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _("Cleanup complete"),
+                'message': _("%s orphaned agent assignment(s) removed.", removed),
+                'type': 'success',
+                'sticky': False,
+            },
+        }

@@ -417,3 +417,14 @@ class TestSaleCommissionPartner(common.TransactionCase):
         so.order_line.invalidate_recordset(['commission_amount'])
         self.assertAlmostEqual(so.order_line.commission_amount, 20.0)
 
+    def test_cleanup_orphan_agent_assignments(self):
+        orphan = self.env['sale.commission.plan.partner'].create({
+            'plan_id': self.commission_plan.id,
+            'partner_id': self.partner_agent.id,
+            'date_from': fields.Date.today(),
+        })
+        self.env.cr.execute('DELETE FROM res_partner WHERE id = %s', [self.partner_agent.id])
+        orphan.invalidate_recordset(['partner_id'])
+        self.commission_plan.action_cleanup_orphan_agents()
+        self.assertFalse(self.env['sale.commission.plan.partner'].browse(orphan.id).exists())
+
