@@ -249,6 +249,29 @@ class TestSaleCommissionPartner(common.TransactionCase):
         so.order_line.invalidate_recordset(['commission_amount'])
         self.assertAlmostEqual(so.order_line.commission_amount, 10.0, msg="Locked SO commission must ignore plan rate changes")
 
+    def test_sales_user_can_compute_partner_commission(self):
+        """Sales users must read commission plan rules without Sales Administrator rights."""
+        sales_user = self.env['res.users'].create({
+            'login': 'sales_commission_user',
+            'partner_id': self.env['res.partner'].create({
+                'name': 'Sales Commission User',
+                'email': 'sales_commission_user@example.com',
+            }).id,
+            'group_ids': [Command.set(self.env.ref('sales_team.group_sale_salesman').ids)],
+        })
+        so = self.env['sale.order'].with_user(sales_user).create({
+            'partner_id': self.partner_customer.id,
+            'agent_id': self.partner_agent.id,
+            'order_line': [Command.create({
+                'product_id': self.product.id,
+                'product_uom_qty': 1,
+                'price_unit': 100.0,
+            })],
+        })
+        self.assertAlmostEqual(so.order_line.commission_amount, 10.0)
+        so.with_user(sales_user).action_confirm()
+        self.assertTrue(so.order_line.commission_locked)
+
     def test_draft_commission_plan_not_applied_on_sale_order(self):
         """Draft commission plans must not calculate partner commission on quotations."""
         draft_plan = self.env['sale.commission.plan'].create({
