@@ -8,6 +8,18 @@ class SaleCommissionPartnerMixin(models.AbstractModel):
     _description = 'Partner Commission Computation Helpers'
 
     @api.model
+    def _get_product_category_branch_ids(self, product):
+        """Return the product category and all of its parent categories."""
+        if not product or not product.categ_id:
+            return []
+        category_ids = []
+        category = product.categ_id
+        while category:
+            category_ids.append(category.id)
+            category = category.parent_id
+        return category_ids
+
+    @api.model
     def _get_partner_plan_partner(self, agent, reference_date, company=None):
         if not agent or not reference_date:
             return self.env['sale.commission.plan.partner']
@@ -28,10 +40,14 @@ class SaleCommissionPartnerMixin(models.AbstractModel):
     def _get_partner_commission_rule(self, plan, product):
         if not plan or not product:
             return self.env['sale.commission.plan.achievement']
+        category_ids = self._get_product_category_branch_ids(product)
+        category_domain = [('product_categ_id', '=', False)]
+        if category_ids:
+            category_domain = ['|', ('product_categ_id', '=', False), ('product_categ_id', 'in', category_ids)]
         return self.env['sale.commission.plan.achievement'].search([
             ('plan_id', '=', plan.id),
             '|', ('product_id', '=', False), ('product_id', '=', product.id),
-            '|', ('product_categ_id', '=', False), ('product_categ_id', '=', product.categ_id.id),
+            *category_domain,
         ], order='product_id DESC, product_categ_id DESC', limit=1)
 
     @api.model

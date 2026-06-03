@@ -76,6 +76,26 @@ class SaleCommissionPartnerReport(models.Model):
             )
         """
 
+    def _product_category_match_sql(self, category_field='pt.categ_id', rule_alias='rule'):
+        """Match plan rules against the product category or any parent category."""
+        return f"""
+            (
+                {rule_alias}.product_categ_id IS NULL
+                OR {rule_alias}.product_categ_id IN (
+                    WITH RECURSIVE category_ancestors AS (
+                        SELECT id, parent_id
+                          FROM product_category
+                         WHERE id = {category_field}
+                        UNION ALL
+                        SELECT pc.id, pc.parent_id
+                          FROM product_category pc
+                          JOIN category_ancestors ca ON pc.id = ca.parent_id
+                    )
+                    SELECT id FROM category_ancestors
+                )
+            )
+        """
+
     def _commission_base_sql(self, line_alias='aml', sol_alias='sol', product_alias='pp', company_alias='move'):
         """Return the SQL expression for the commission base amount (unsigned)."""
         unit_cost = self._product_cost_sql(product_alias, company_alias)
@@ -149,7 +169,7 @@ class SaleCommissionPartnerReport(models.Model):
                 FROM sale_commission_plan_achievement rule
                 WHERE rule.plan_id = plan.id
                   AND (rule.product_id IS NULL OR rule.product_id = aml.product_id)
-                  AND (rule.product_categ_id IS NULL OR rule.product_categ_id = pt.categ_id)
+                  AND {self._product_category_match_sql()}
                 ORDER BY rule.product_id NULLS LAST, rule.product_categ_id NULLS LAST
                 LIMIT 1
             ) rule ON TRUE
@@ -192,7 +212,7 @@ class SaleCommissionPartnerReport(models.Model):
                 FROM sale_commission_plan_achievement rule
                 WHERE rule.plan_id = plan.id
                   AND (rule.product_id IS NULL OR rule.product_id = sol.product_id)
-                  AND (rule.product_categ_id IS NULL OR rule.product_categ_id = pt.categ_id)
+                  AND {self._product_category_match_sql()}
                 ORDER BY rule.product_id NULLS LAST, rule.product_categ_id NULLS LAST
                 LIMIT 1
             ) rule ON TRUE

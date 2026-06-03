@@ -354,3 +354,44 @@ class TestSaleCommissionPartner(common.TransactionCase):
         })
         self.assertAlmostEqual(so_company_c.order_line.commission_amount, 0.0)
 
+    def test_commission_rule_matches_parent_category(self):
+        """Plan rules on a parent category apply to products in child categories."""
+        parent_category = self.env['product.category'].create({'name': 'Microsoft CSP'})
+        child_category = self.env['product.category'].create({
+            'name': 'Microsoft 365',
+            'parent_id': parent_category.id,
+        })
+        product = self.env['product.product'].create({
+            'name': 'M365 Product',
+            'categ_id': child_category.id,
+            'list_price': 100.0,
+            'type': 'service',
+        })
+        parent_plan = self.env['sale.commission.plan'].create({
+            'name': 'Parent Category Plan',
+            'user_type': 'partner',
+            'company_id': self.env.company.id,
+            'achievement_ids': [Command.create({
+                'type': 'amount_sold',
+                'product_categ_id': parent_category.id,
+                'rate': 0.15,
+            })],
+        })
+        parent_plan.action_approve()
+        self.partner_agent.write({
+            'commission_plan_ids': [Command.create({
+                'plan_id': parent_plan.id,
+                'date_from': fields.Date.today(),
+            })]
+        })
+        so = self.env['sale.order'].create({
+            'partner_id': self.partner_customer.id,
+            'agent_id': self.partner_agent.id,
+            'order_line': [Command.create({
+                'product_id': product.id,
+                'product_uom_qty': 1,
+                'price_unit': 100.0,
+            })],
+        })
+        self.assertAlmostEqual(so.order_line.commission_amount, 15.0)
+
