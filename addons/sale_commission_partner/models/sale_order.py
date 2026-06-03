@@ -100,6 +100,25 @@ class SaleOrderLine(models.Model):
             snapshot['commission_locked'] = True
             line.write(snapshot)
 
+    def refresh_partner_commission(self, force=False):
+        """Recompute partner commission amounts for selected lines."""
+        lines = self.filtered(lambda line: line.agent_id and not line.display_type)
+        if not lines:
+            return 0
+        if force:
+            lines.write({
+                'commission_locked': False,
+                'commission_plan_id': False,
+                'commission_rule_type': False,
+                'commission_rate': 0.0,
+                'commission_base': 0.0,
+            })
+        lines = lines.filtered(lambda line: not line.commission_locked)
+        lines._compute_commission_amount()
+        if force:
+            lines.filtered(lambda line: line.order_id.state == 'sale')._lock_partner_commission_preview()
+        return len(lines)
+
     def _prepare_invoice_line(self, **optional_values):
         res = super()._prepare_invoice_line(**optional_values)
         res['agent_id'] = self.agent_id.id

@@ -8,6 +8,15 @@
             <xpath expr="//field[@name='company_id'][@groups='base.group_multi_company']" position="replace">
                 <field name="company_ids" widget="many2many_tags" options="{'no_create': True}" groups="base.group_multi_company" readonly="state != 'draft'"/>
             </xpath>
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_refresh_commissions" type="object"
+                        class="oe_stat_button" icon="fa-refresh"
+                        invisible="user_type != 'partner' or state != 'approved'">
+                    <div class="o_stat_info">
+                        <span class="o_stat_text">Update Commissions</span>
+                    </div>
+                </button>
+            </xpath>
             <xpath expr="//notebook[@name='main_book']" position="inside">
                 <page string="Agents" invisible="user_type != 'partner'">
                     <field name="partner_ids">

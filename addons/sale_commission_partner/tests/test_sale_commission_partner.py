@@ -395,3 +395,25 @@ class TestSaleCommissionPartner(common.TransactionCase):
         })
         self.assertAlmostEqual(so.order_line.commission_amount, 15.0)
 
+    def test_bulk_refresh_partner_commissions(self):
+        """Existing sale order lines can be recomputed in bulk after plan changes."""
+        so = self.env['sale.order'].create({
+            'partner_id': self.partner_customer.id,
+            'agent_id': self.partner_agent.id,
+            'order_line': [Command.create({
+                'product_id': self.product.id,
+                'product_uom_qty': 1,
+                'price_unit': 100.0,
+            })],
+        })
+        so.order_line.write({'commission_amount': 0.0})
+        self.commission_plan.achievement_ids.rate = 0.20
+        wizard = self.env['sale.commission.refresh.wizard'].create({
+            'plan_id': self.commission_plan.id,
+            'order_state': 'all',
+            'include_locked': False,
+        })
+        wizard.action_refresh()
+        so.order_line.invalidate_recordset(['commission_amount'])
+        self.assertAlmostEqual(so.order_line.commission_amount, 20.0)
+

@@ -109,3 +109,16 @@ class SaleCommissionPlan(models.Model):
                 "context": {'search_default_plan_id': self.id},
             }
         return super().action_open_commission()
+
+    def action_refresh_commissions(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Update Commissions'),
+            'res_model': 'sale.commission.refresh.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_plan_id': self.id,
+            },
+        }

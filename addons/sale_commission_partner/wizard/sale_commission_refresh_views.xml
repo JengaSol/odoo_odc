@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="sale_commission_refresh_wizard_form" model="ir.ui.view">
+        <field name="name">sale.commission.refresh.wizard.form</field>
+        <field name="model">sale.commission.refresh.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Update Commissions">
+                <group>
+                    <field name="plan_id"/>
+                    <field name="order_state"/>
+                    <field name="date_from"/>
+                    <field name="date_to"/>
+                    <field name="order_ids" widget="many2many_tags"/>
+                    <field name="include_locked"/>
+                </group>
+                <footer>
+                    <button string="Update Commissions" name="action_refresh" type="object" class="btn-primary" data-hotkey="q"/>
+                    <button string="Cancel" special="cancel" data-hotkey="x"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_sale_commission_refresh_wizard" model="ir.actions.act_window">
+        <field name="name">Update Commissions</field>
+        <field name="res_model">sale.commission.refresh.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+</odoo>
